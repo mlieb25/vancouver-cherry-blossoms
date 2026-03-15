@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.streamlit/
+# Large data files are okay if under 100MB, but let's be careful.
+# For now, we need them for the app to work.

@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Vancouver Cherry Blossoms</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --blossom-deep:    #b5476e;
+    --blossom-mid:     #d4799a;
+    --blossom-light:   #f0b8cc;
+    --blossom-pale:    #fce8f0;
+    --blossom-blush:   #fff5f8;
+    --bark:            #4a2c2a;
+    --bark-mid:        #7c4a48;
+    --leaf-green:      #6b8c6b;
+    --sky:             #c8dff5;
+    --sky-deep:        #8bb8d4;
+    --ink:             #2a1a1e;
+    --ink-soft:        #5a3a44;
+    --petal-shadow:    rgba(181,71,110,0.12);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--blossom-blush);
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Falling petals ── */
+  .petal-canvas {
+    position: fixed; top:0; left:0; width:100%; height:100%;
+    pointer-events: none; z-index: 0; overflow: hidden;
+  }
+  .petal {
+    position: absolute;
+    top: -40px;
+    font-size: 18px;
+    opacity: 0;
+    animation: fall linear infinite;
+    user-select: none;
+  }
+  @keyframes fall {
+    0%   { transform: translateY(0) rotate(0deg) translateX(0); opacity:0; }
+    5%   { opacity: 0.7; }
+    90%  { opacity: 0.5; }
+    100% { transform: translateY(110vh) rotate(720deg) translateX(60px); opacity:0; }
+  }
+
+  /* ── Layout ── */
+  .app { position: relative; z-index:1; }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, var(--bark) 0%, var(--bark-mid) 60%, var(--blossom-deep) 100%);
+    padding: 2rem 2.5rem 1.8rem;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content:'';
+    position:absolute; inset:0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Ccircle cx='100' cy='100' r='80' fill='none' stroke='rgba(255,255,255,0.04)' stroke-width='40'/%3E%3Ccircle cx='100' cy='100' r='50' fill='none' stroke='rgba(255,255,255,0.03)' stroke-width='20'/%3E%3C/svg%3E") center/400px repeat;
+  }
+  .header-left { position:relative; }
+  .header-eyebrow {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--blossom-light);
+    margin-bottom: 0.4rem;
+  }
+  .header-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(1.9rem, 4vw, 3rem);
+    font-weight: 300;
+    color: #fff;
+    line-height: 1.1;
+  }
+  .header-title em {
+    font-style: italic;
+    color: var(--blossom-light);
+  }
+  .header-sub {
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.55);
+    margin-top: 0.35rem;
+    font-weight: 300;
+  }
+  .header-stats {
+    display: flex; gap: 2rem;
+    position: relative;
+  }
+  .hstat {
+    text-align: right;
+  }
+  .hstat-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2rem;
+    font-weight: 300;
+    color: #fff;
+    line-height:1;
+  }
+  .hstat-num span { font-size: 1rem; color: var(--blossom-light); }
+  .hstat-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.45);
+    margin-top: 0.2rem;
+  }
+  .peak-badge {
+    background: var(--blossom-deep);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.7rem;
+    border-radius: 2rem;
+    margin-top: 0.5rem;
+    display: inline-block;
+    animation: pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(181,71,110,0.4); }
+    50%      { box-shadow: 0 0 0 8px rgba(181,71,110,0); }
+  }
+
+  /* ── Main grid ── */
+  main {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 1.25rem;
+    padding: 1.5rem 2rem;
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.78);
+    border: 1px solid rgba(181,71,110,0.1);
+    border-radius: 16px;
+    padding: 1.5rem;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 24px var(--petal-shadow), 0 1px 2px rgba(74,44,42,0.06);
+    transition: transform 0.22s ease, box-shadow 0.22s ease;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px var(--petal-shadow), 0 2px 8px rgba(74,44,42,0.08);
+  }
+
+  .card-label {
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--blossom-mid);
+    margin-bottom: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .card-label::before {
+    content: '';
+    display: inline-block;
+    width: 18px; height: 2px;
+    background: var(--blossom-light);
+    border-radius: 2px;
+  }
+  .card-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: var(--ink);
+    margin-bottom: 1rem;
+  }
+
+  /* ── Bloom Status card (spans 2 cols) ── */
+  .card-bloom {
+    grid-column: 1 / 3;
+  }
+  .bloom-stages {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+  .stage {
+    text-align: center;
+    padding: 1rem 0.5rem;
+    border-radius: 12px;
+    border: 1.5px solid transparent;
+    transition: all 0.2s;
+    cursor: default;
+    position: relative;
+  }
+  .stage.active {
+    background: var(--blossom-pale);
+    border-color: var(--blossom-mid);
+  }
+  .stage.passed { background: rgba(181,71,110,0.05); }
+  .stage.future { background: rgba(200,223,245,0.3); }
+  .stage-icon { font-size: 1.8rem; margin-bottom: 0.4rem; }
+  .stage-name {
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+  }
+  .stage-pct {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.4rem;
+    color: var(--blossom-deep);
+    font-weight: 600;
+  }
+  .stage-date {
+    font-size: 0.63rem;
+    color: var(--blossom-mid);
+    margin-top: 0.2rem;
+  }
+  .active-pip {
+    position: absolute;
+    top: -4px; right: -4px;
+    width: 10px; height: 10px;
+    background: var(--blossom-deep);
+    border-radius: 50%;
+    border: 2px solid white;
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+
+  /* ── Weather card ── */
+  .card-weather {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .weather-main {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .weather-icon { font-size: 3rem; }
+  .weather-temp {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 3rem;
+    font-weight: 300;
+    line-height: 1;
+    color: var(--bark-mid);
+  }
+  .weather-desc {
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    margin-top: 0.2rem;
+  }
+  .weather-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .witem {
+    background: var(--blossom-pale);
+    border-radius: 8px;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.75rem;
+  }
+  .witem-label { color: var(--blossom-mid); font-size: 0.63rem; text-transform: uppercase; letter-spacing: 0.08em; }
+  .witem-val { font-weight: 500; color: var(--ink); margin-top: 0.1rem; }
+
+  /* ── Locations map card ── */
+  .card-locations {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .location-list { display: flex; flex-direction: column; gap: 0.6rem; }
+  .loc-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.8rem;
+    border-radius: 10px;
+    background: var(--blossom-blush);
+    border: 1px solid rgba(181,71,110,0.08);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .loc-item:hover { background: var(--blossom-pale); }
+  .loc-item.top { border-color: var(--blossom-light); background: var(--blossom-pale); }
+  .loc-icon { font-size: 1.2rem; flex-shrink: 0; }
+  .loc-name { font-size: 0.82rem; font-weight: 500; color: var(--ink); }
+  .loc-sub  { font-size: 0.68rem; color: var(--blossom-mid); }
+  .loc-bar-wrap { margin-left: auto; text-align: right; }
+  .loc-pct { font-family: 'Cormorant Garamond', serif; font-size: 1.1rem; color: var(--blossom-deep); }
+  .loc-bar {
+    width: 60px; height: 4px;
+    background: var(--blossom-pale);
+    border-radius: 2px;
+    margin-top: 3px;
+    overflow: hidden;
+  }
+  .loc-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--blossom-light), var(--blossom-deep));
+    border-radius: 2px;
+    transition: width 0.8s ease;
+  }
+
+  /* ── Forecast timeline ── */
+  .card-forecast {
+    grid-column: 2 / 4;
+    grid-row: 2;
+  }
+  .forecast-scroll {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  .fday {
+    text-align: center;
+    padding: 0.7rem 0.3rem;
+    border-radius: 10px;
+    background: var(--blossom-blush);
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    cursor: default;
+  }
+  .fday.today {
+    background: var(--blossom-pale);
+    border-color: var(--blossom-mid);
+  }
+  .fday-name { font-size: 0.63rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--blossom-mid); margin-bottom: 0.3rem; }
+  .fday-icon { font-size: 1.4rem; margin: 0.3rem 0; }
+  .fday-temp { font-family: 'Cormorant Garamond', serif; font-size: 1rem; color: var(--ink); }
+  .fday-bloom {
+    margin-top: 0.4rem;
+    font-size: 0.62rem;
+    color: var(--blossom-deep);
+    font-weight: 500;
+  }
+  .fday-bloom-bar {
+    height: 3px; border-radius: 2px;
+    background: var(--blossom-light);
+    margin-top: 4px;
+    overflow: hidden;
+  }
+  .fday-bloom-fill {
+    height: 100%;
+    background: var(--blossom-deep);
+  }
+
+  /* ── Species card ── */
+  .card-species {
+    grid-column: 1 / 3;
+    grid-row: 3;
+  }
+  .species-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+  .species-card {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(181,71,110,0.1);
+    background: white;
+  }
+  .species-color {
+    height: 56px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+  }
+  .species-body { padding: 0.75rem; }
+  .species-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .species-latin {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 0.75rem;
+    color: var(--blossom-mid);
+    margin-bottom: 0.5rem;
+  }
+  .species-stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--ink-soft);
+    margin-top: 0.3rem;
+  }
+  .species-stat strong { color: var(--blossom-deep); }
+
+  /* ── Activity feed ── */
+  .card-activity {
+    grid-column: 3;
+    grid-row: 3 / 5;
+  }
+  .activity-list { display: flex; flex-direction: column; gap: 0; }
+  .activity-item {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid rgba(181,71,110,0.07);
+    position: relative;
+  }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--blossom-light);
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+  .activity-dot.hot { background: var(--blossom-deep); }
+  .activity-text { font-size: 0.78rem; color: var(--ink-soft); line-height: 1.4; }
+  .activity-text strong { color: var(--ink); font-weight: 500; }
+  .activity-time { font-size: 0.65rem; color: var(--blossom-mid); margin-top: 0.2rem; }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 1.5rem 2rem;
+    font-size: 0.7rem;
+    color: var(--blossom-mid);
+    letter-spacing: 0.08em;
+  }
+
+  /* ── Animations ── */
+  .card { animation: cardIn 0.5s ease both; }
+  .card:nth-child(1) { animation-delay: 0.05s; }
+  .card:nth-child(2) { animation-delay: 0.1s; }
+  .card:nth-child(3) { animation-delay: 0.15s; }
+  .card:nth-child(4) { animation-delay: 0.2s; }
+  .card:nth-child(5) { animation-delay: 0.25s; }
+  .card:nth-child(6) { animation-delay: 0.3s; }
+  @keyframes cardIn {
+    from { opacity:0; transform: translateY(16px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+
+  /* ── Nav tabs ── */
+  .nav-bar {
+    display: flex;
+    gap: 0.3rem;
+    padding: 0.75rem 2rem 0;
+    background: linear-gradient(to bottom, rgba(74,44,42,0.06), transparent);
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+  .nav-tab {
+    padding: 0.4rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    border-radius: 2rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--ink-soft);
+    background: transparent;
+  }
+  .nav-tab.active {
+    background: var(--blossom-deep);
+    color: white;
+    border-color: var(--blossom-deep);
+  }
+  .nav-tab:hover:not(.active) {
+    background: var(--blossom-pale);
+    border-color: var(--blossom-light);
+  }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr 1fr; }
+    .card-bloom, .card-species { grid-column: 1 / 3; }
+    .card-forecast { grid-column: 1 / 3; }
+    .card-activity { grid-column: 1 / 3; grid-row: auto; }
+    .card-weather { grid-column: 2; }
+  }
+  @media (max-width: 600px) {
+    main { grid-template-columns: 1fr; }
+    .card-bloom, .card-species, .card-forecast, .card-weather, .card-activity { grid-column: 1; }
+    header { flex-direction: column; gap: 1.2rem; align-items: flex-start; }
+    .header-stats { flex-direction: row; }
+    .hstat { text-align: left; }
+    .forecast-scroll { grid-template-columns: repeat(4, 1fr); }
+    .species-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="petal-canvas" id="petals"></div>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <div class="header-eyebrow">🌸 Vancouver Cherry Blossom Project</div>
+      <h1 class="header-title">Sakura in <em>Full Bloom</em></h1>
+      <div class="header-sub">Metro Vancouver · Spring 2026 · Updated hourly</div>
+      <span class="peak-badge">⭐ Peak Week — Mar 14–21</span>
+    </div>
+    <div class="header-stats">
+      <div class="hstat">
+        <div class="hstat-num">43,000<span>+</span></div>
+        <div class="hstat-label">Trees Tracked</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-num">87<span>%</span></div>
+        <div class="hstat-label">Peak Bloom</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-num">12<span>°</span></div>
+        <div class="hstat-label">Today's High</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Nav -->
+  <div class="nav-bar">
+    <button class="nav-tab active">Overview</button>
+    <button class="nav-tab">Map</button>
+    <button class="nav-tab">Species</button>
+    <button class="nav-tab">History</button>
+    <button class="nav-tab">Photos</button>
+  </div>
+
+  <main>
+
+    <!-- Bloom Status -->
+    <div class="card card-bloom">
+      <div class="card-label">Bloom Progression</div>
+      <div class="card-title">2026 Season Status</div>
+      <div class="bloom-stages">
+        <div class="stage passed">
+          <div class="stage-icon">🌱</div>
+          <div class="stage-pct">100%</div>
+          <div class="stage-name">Dormant</div>
+          <div class="stage-date">Jan – Feb</div>
+        </div>
+        <div class="stage passed">
+          <div class="stage-icon">🌿</div>
+          <div class="stage-pct">100%</div>
+          <div class="stage-name">Bud Burst</div>
+          <div class="stage-date">Mar 1–5</div>
+        </div>
+        <div class="stage passed">
+          <div class="stage-icon">🌸</div>
+          <div class="stage-pct">100%</div>
+          <div class="stage-name">Early Bloom</div>
+          <div class="stage-date">Mar 6–10</div>
+        </div>
+        <div class="stage active">
+          <div class="active-pip"></div>
+          <div class="stage-icon">🌺</div>
+          <div class="stage-pct">87%</div>
+          <div class="stage-name">Peak Bloom</div>
+          <div class="stage-date">Mar 11–18 ◀ Now</div>
+        </div>
+        <div class="stage future">
+          <div class="stage-icon">🍃</div>
+          <div class="stage-pct">—</div>
+          <div class="stage-name">Petal Fall</div>
+          <div class="stage-date">Mar 19–25</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Weather -->
+    <div class="card card-weather">
+      <div class="card-label">Conditions</div>
+      <div class="weather-main">
+        <div class="weather-icon">🌤</div>
+        <div>
+          <div class="weather-temp">12°</div>
+          <div class="weather-desc">Partly cloudy — ideal viewing</div>
+        </div>
+      </div>
+      <div class="weather-grid">
+        <div class="witem">
+          <div class="witem-label">Wind</div>
+          <div class="witem-val">8 km/h SW</div>
+        </div>
+        <div class="witem">
+          <div class="witem-label">Humidity</div>
+          <div class="witem-val">68%</div>
+        </div>
+        <div class="witem">
+          <div class="witem-label">UV Index</div>
+          <div class="witem-val">3 — Moderate</div>
+        </div>
+        <div class="witem">
+          <div class="witem-label">Rain Risk</div>
+          <div class="witem-val">15% · Tue</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Locations -->
+    <div class="card card-locations">
+      <div class="card-label">Top Viewing Spots</div>
+      <div class="location-list">
+        <div class="loc-item top">
+          <div class="loc-icon">🌸</div>
+          <div>
+            <div class="loc-name">Queen Elizabeth Park</div>
+            <div class="loc-sub">Cambie · 150+ trees</div>
+          </div>
+          <div class="loc-bar-wrap">
+            <div class="loc-pct">94%</div>
+            <div class="loc-bar"><div class="loc-bar-fill" style="width:94%"></div></div>
+          </div>
+        </div>
+        <div class="loc-item top">
+          <div class="loc-icon">🌸</div>
+          <div>
+            <div class="loc-name">Hastings Park</div>
+            <div class="loc-sub">East Van · Akebono Row</div>
+          </div>
+          <div class="loc-bar-wrap">
+            <div class="loc-pct">91%</div>
+            <div class="loc-bar"><div class="loc-bar-fill" style="width:91%"></div></div>
+          </div>
+        </div>
+        <div class="loc-item">
+          <div class="loc-icon">🌳</div>
+          <div>
+            <div class="loc-name">VanDusen Gardens</div>
+            <div class="loc-sub">Oakridge · Mixed variety</div>
+          </div>
+          <div class="loc-bar-wrap">
+            <div class="loc-pct">83%</div>
+            <div class="loc-bar"><div class="loc-bar-fill" style="width:83%"></div></div>
+          </div>
+        </div>
+        <div class="loc-item">
+          <div class="loc-icon">🌳</div>
+          <div>
+            <div class="loc-name">UBC Campus</div>
+            <div class="loc-sub">Point Grey · Rose Garden</div>
+          </div>
+          <div class="loc-bar-wrap">
+            <div class="loc-pct">79%</div>
+            <div class="loc-bar"><div class="loc-bar-fill" style="width:79%"></div></div>
+          </div>
+        </div>
+        <div class="loc-item">
+          <div class="loc-icon">🏔</div>
+          <div>
+            <div class="loc-name">Stanley Park</div>
+            <div class="loc-sub">Coal Harbour · Lost Lagoon</div>
+          </div>
+          <div class="loc-bar-wrap">
+            <div class="loc-pct">72%</div>
+            <div class="loc-bar"><div class="loc-bar-fill" style="width:72%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7-day forecast -->
+    <div class="card card-forecast">
+      <div class="card-label">7-Day Bloom Forecast</div>
+      <div class="forecast-scroll">
+        <div class="fday">
+          <div class="fday-name">Sat</div>
+          <div class="fday-icon">⛅</div>
+          <div class="fday-temp">10°</div>
+          <div class="fday-bloom">82%</div>
+          <div class="fday-bloom-bar"><div class="fday-bloom-fill" style="width:82%"></div></div>
+        </div>
+        <div class="fday today">
+          <div class="fday-name">Sun ★</div>
+          <div class="fday-icon">🌤</div>
+          <div class="fday-temp">12°</div>
+          <div class="fday-bloom">87%</div>
+          <div class="fday-bloom-bar"><div class="fday-bloom-fill" style="width:87%"></div></div>
+        </div>
+        <div class="fday">
+          <div class="fday-name">Mon</div>
+          <div class="fday-icon">☀️</div>
+          <div class="fday-temp">14°</div>
+          <div class="fday-bloom">92%</div>
+          <div class="fday-bloom-bar"><div class="fday-bloom-fill" style="width:92%"></div></div>
+        </div>
+        <div class="fday">
+          <div class="fday-name">Tue</div>
+          <div class="fday-icon">🌧</div>
+          <div class="fday-temp">9°</div>
+          <div class="fday-bloom">88%</div>
+          <div class="fday-bloom-bar"><div class="fday-bloom-fill" style="width:88%"></div></div>
+        </div>
+        <div class="fday">
+          <div class="fday-name">Wed</div>
+          <div class="fday-icon">⛅</div>
+          <div class="fday-temp">11°</div>
+          <div class="fday-bloom">76%</div>
+          <div class="fday-bloom-bar"><div class="fday-bloom-fill" style="width:76%"></div></div>
+        </div>
+        <div class="fday">
+          <div class="fday-name">Thu</div>
+          <div class="fday-icon">☀️</div>
+          <div class="fday-temp">13°</div>
+          <div class="fday-bloom">61%</div>
+          <div class="fday-bloom-bar"><div class="fday-bloom-fill" style="width:61%"></div></div>
+        </div>
+        <div class="fday">
+          <div class="fday-name">Fri</div>
+          <div class="fday-icon">☀️</div>
+          <div class="fday-temp">15°</div>
+          <div class="fday-bloom">44%</div>
+          <div class="fday-bloom-bar"><div class="fday-bloom-fill" style="width:44%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Species -->
+    <div class="card card-species">
+      <div class="card-label">Featured Varieties</div>
+      <div class="card-title">Top Species in Bloom</div>
+      <div class="species-grid">
+        <div class="species-card">
+          <div class="species-color" style="background:linear-gradient(135deg,#f8d7e3,#e895b5)">🌸</div>
+          <div class="species-body">
+            <div class="species-name">Akebono</div>
+            <div class="species-latin">Prunus × yedoensis 'Akebono'</div>
+            <div class="species-stat"><span>Bloom status</span><strong>Peak 91%</strong></div>
+            <div class="species-stat"><span>Trees in VAN</span><strong>~9,400</strong></div>
+            <div class="species-stat"><span>Color</span><strong>Blush pink</strong></div>
+          </div>
+        </div>
+        <div class="species-card">
+          <div class="species-color" style="background:linear-gradient(135deg,#fde8f2,#f4b8d4)">🌺</div>
+          <div class="species-body">
+            <div class="species-name">Kanzan</div>
+            <div class="species-latin">Prunus serrulata 'Kanzan'</div>
+            <div class="species-stat"><span>Bloom status</span><strong>Early 68%</strong></div>
+            <div class="species-stat"><span>Trees in VAN</span><strong>~6,200</strong></div>
+            <div class="species-stat"><span>Color</span><strong>Deep pink</strong></div>
+          </div>
+        </div>
+        <div class="species-card">
+          <div class="species-color" style="background:linear-gradient(135deg,#fefefe,#f5d8e8)">🤍</div>
+          <div class="species-body">
+            <div class="species-name">Somei-Yoshino</div>
+            <div class="species-latin">Prunus × yedoensis</div>
+            <div class="species-stat"><span>Bloom status</span><strong>Peak 89%</strong></div>
+            <div class="species-stat"><span>Trees in VAN</span><strong>~4,800</strong></div>
+            <div class="species-stat"><span>Color</span><strong>White-pink</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity feed -->
+    <div class="card card-activity">
+      <div class="card-label">Recent Observations</div>
+      <div class="activity-list">
+        <div class="activity-item">
+          <div class="activity-dot hot"></div>
+          <div>
+            <div class="activity-text"><strong>Queen Elizabeth Park</strong> — Akebono trees at full canopy. Exceptional viewing conditions today.</div>
+            <div class="activity-time">2 hrs ago · Volunteer observer</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot hot"></div>
+          <div>
+            <div class="activity-text"><strong>Hastings Park row</strong> reached 95% bloom — the iconic Akebono tunnel is spectacular this weekend.</div>
+            <div class="activity-time">4 hrs ago · Park staff</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot"></div>
+          <div>
+            <div class="activity-text">Light winds forecast Monday — excellent conditions to extend peak without petal drop.</div>
+            <div class="activity-time">6 hrs ago · Forecast update</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot"></div>
+          <div>
+            <div class="activity-text"><strong>UBC Rose Garden</strong> Kanzan variety now entering bloom — expect peak by mid-week.</div>
+            <div class="activity-time">Yesterday · Arborist report</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot"></div>
+          <div>
+            <div class="activity-text">2026 season tracking <strong>5 days earlier</strong> than the 10-year average — warmest February on record.</div>
+            <div class="activity-time">2 days ago · Annual report</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot"></div>
+          <div>
+            <div class="activity-text"><strong>Stanley Park</strong> Lost Lagoon trees showing early bud burst along the seawall path.</div>
+            <div class="activity-time">3 days ago · Observer</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot"></div>
+          <div>
+            <div class="activity-text">New tree inventory complete: <strong>43,000+ trees</strong> now mapped across Metro Vancouver.</div>
+            <div class="activity-time">1 week ago · Project team</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer>Vancouver Cherry Blossom Project · Spring 2026 · 🌸 Celebrating the sakura season</footer>
+</div>
+
+<script>
+  // Falling petals
+  const canvas = document.getElementById('petals');
+  const petals = ['🌸','🌺','🌷','✿','❀'];
+  for (let i = 0; i < 22; i++) {
+    const p = document.createElement('div');
+    p.className = 'petal';
+    p.textContent = petals[Math.floor(Math.random() * petals.length)];
+    p.style.left = Math.random() * 100 + 'vw';
+    p.style.fontSize = (12 + Math.random() * 14) + 'px';
+    p.style.animationDuration = (8 + Math.random() * 14) + 's';
+    p.style.animationDelay = (Math.random() * 12) + 's';
+    p.style.opacity = 0.4 + Math.random() * 0.4;
+    canvas.appendChild(p);
+  }
+
+  // Nav tabs
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
