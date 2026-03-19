@@ -279,7 +279,7 @@ def load_data():
     df = pd.read_csv("public-trees.csv", sep=";", encoding="utf-8-sig")
     df.columns = df.columns.str.strip()
 
-    cherry = df[df["Genus name"].str.upper() == "PRUNUS"].copy()
+    # Apply some basic cleaning for all trees
 
     def parse_coords(val):
         try:
@@ -288,48 +288,30 @@ def load_data():
         except:
             return None, None
 
-    cherry[["lat", "lon"]] = cherry["geo_point_2d"].apply(
+    df[["lat", "lon"]] = df["geo_point_2d"].apply(
         lambda x: pd.Series(parse_coords(x))
     )
-    cherry = cherry.dropna(subset=["lat", "lon"])
+    df = df.dropna(subset=["lat", "lon"])
 
-    cherry["Date planted"] = pd.to_datetime(cherry["Date planted"], errors="coerce")
+    df["Date planted"] = pd.to_datetime(df["Date planted"], errors="coerce")
     this_year = datetime.now().year
-    cherry["age_years"] = cherry["Date planted"].apply(
+    df["age_years"] = df["Date planted"].apply(
         lambda d: this_year - d.year if pd.notnull(d) else None
     )
-    cherry["year_planted"] = cherry["Date planted"].dt.year
+    df["year_planted"] = df["Date planted"].dt.year
 
-    def bloom_score(row):
-        score = 0
-        d = row["diameter_(cm)"]
-        h = row["height_(m)"]
-        if pd.notnull(d):
-            if d >= 30: score += 3
-            elif d >= 15: score += 2
-            else: score += 1
-        if pd.notnull(h):
-            if h >= 8: score += 2
-            elif h >= 4: score += 1
-        return score
+    df["neighbourhood"] = df["Address"].str.extract(r'(?:AV|ST|DR|RD|BLVD|WAY|PL|LANE|CRES|CT|CLOSE|MEWS|WALK|ROAD)\s+(.+)$')
+    df["neighbourhood"] = df["neighbourhood"].fillna("Unknown")
 
-    cherry["bloom_score"] = cherry.apply(bloom_score, axis=1)
-    cherry["bloom_label"] = cherry["bloom_score"].map(
-        {5: "🌸 Peak Bloom", 4: "🌸 Full Bloom", 3: "🌷 Blooming", 2: "🌱 Early Bloom", 1: "🌱 Young Tree", 0: "🌱 Young Tree"}
-    )
-
-    cherry["neighbourhood"] = cherry["Address"].str.extract(r'(?:AV|ST|DR|RD|BLVD|WAY|PL|LANE|CRES|CT|CLOSE|MEWS|WALK|ROAD)\s+(.+)$')
-    cherry["neighbourhood"] = cherry["neighbourhood"].fillna("Unknown")
-
-    cherry["Cultivar name"] = cherry["Cultivar name"].replace("NONE", "")
-    cherry["full_name"] = (
-        cherry["Common name"].str.title() + " " +
-        cherry["Species name"].str.lower() + " " +
-        cherry["Cultivar name"].str.title()
+    df["Cultivar name"] = df["Cultivar name"].replace("NONE", "")
+    df["full_name"] = (
+        df["Common name"].str.title() + " " +
+        df["Species name"].str.lower() + " " +
+        df["Cultivar name"].str.title()
     ).str.strip()
 
-    cherry["weight"] = 1
-    return cherry
+    df["weight"] = 1
+    return df
 
 df = load_data()
 
@@ -339,18 +321,19 @@ with st.sidebar:
 
     address_search = st.text_input("🏠 Search by Address", placeholder="e.g. W 15TH AV")
 
-    all_varieties = sorted(df["Common name"].dropna().unique())
-    selected_varieties = st.multiselect(
-        "🌸 Cherry Variety",
-        options=all_varieties,
-        default=all_varieties,
+    all_genuses = sorted(df["Genus name"].dropna().unique())
+    selected_genus = st.multiselect(
+        "🌲 Tree Genus",
+        options=all_genuses,
+        default=["PRUNUS"] if "PRUNUS" in all_genuses else all_genuses[:1],
     )
 
-    bloom_options = ["🌸 Peak Bloom", "🌸 Full Bloom", "🌷 Blooming", "🌱 Early Bloom", "🌱 Young Tree"]
-    selected_bloom = st.multiselect(
-        "🌡️ Bloom Status",
-        options=bloom_options,
-        default=bloom_options,
+    df_filtered_genus = df[df["Genus name"].isin(selected_genus)]
+    all_varieties = sorted(df_filtered_genus["Common name"].dropna().unique())
+    selected_varieties = st.multiselect(
+        "🌸 Variety (Common Name)",
+        options=all_varieties,
+        default=all_varieties,
     )
 
     height_range = st.slider(
@@ -378,21 +361,14 @@ with st.sidebar:
         options=["light", "dark", "road", "satellite"],
         index=0,
     )
-    map_layer = st.radio(
-        "Layer Type",
-        options=["Heatmap", "Scatter", "3D Hexagon"],
-        index=0,
-        horizontal=True,
-    )
-    point_size = st.slider("Point Size", 5, 40, 15) if map_layer == "Scatter" else 15
 
     st.markdown("---")
     st.markdown("### 📥 Export")
 
 # ─── Apply Filters ───────────────────────────────────────────────────────────
 filtered = df[
+    (df["Genus name"].isin(selected_genus)) &
     (df["Common name"].isin(selected_varieties)) &
-    (df["bloom_label"].isin(selected_bloom)) &
     (df["height_(m)"].between(*height_range)) &
     (df["diameter_(cm)"].between(*diam_range))
 ].copy()
@@ -410,7 +386,7 @@ if address_search:
 with st.sidebar:
     csv_export = filtered[[
         "Asset ID", "Address", "Common name", "Species name", "Cultivar name",
-        "height_(m)", "diameter_(cm)", "Date planted", "bloom_label", "lat", "lon"
+        "height_(m)", "diameter_(cm)", "Date planted", "lat", "lon"
     ]].to_csv(index=False)
     st.download_button(
         label="⬇️ Download Filtered Data (.csv)",
@@ -421,114 +397,41 @@ with st.sidebar:
     )
 
 # ─── KPI Row ─────────────────────────────────────────────────────────────────
-today = datetime.now()
-blooming_now = today.month in [3, 4]
-
-k1, k2, k3, k4, k5 = st.columns(5)
-k1.metric("🌸 Trees Shown", f"{len(filtered):,}", f"of {len(df):,} total")
-k2.metric("🌺 Varieties", filtered["Common name"].nunique())
+k1, k2, k3, k4 = st.columns(4)
+k1.metric("🌲 Trees Shown", f"{len(filtered):,}", f"of {len(df):,} total")
+k2.metric("🌳 Varieties", filtered["Common name"].nunique())
 k3.metric("📏 Avg Height", f"{filtered['height_(m)'].mean():.1f} m")
 k4.metric("🌲 Avg Diameter", f"{filtered['diameter_(cm)'].mean():.1f} cm")
-k5.metric(
-    "🌡️ Season",
-    "Peak Bloom 🌸" if blooming_now else "Off Season",
-    f"March {today.year}" if blooming_now else None,
-)
-
-if blooming_now:
-    st.markdown('<span class="bloom-badge">🌸 BLOOMING NOW — Peak Cherry Blossom Season!</span>', unsafe_allow_html=True)
 
 st.markdown("")
 
 # ─── Map ─────────────────────────────────────────────────────────────────────
-st.markdown('<div class="section-header">🗺️ Interactive Map</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-header">🗺️ Interactive Map (Heatmap)</div>', unsafe_allow_html=True)
 
-# Soft cherry blossom palette for scatter
-species_list = sorted(filtered["Common name"].dropna().unique())
-palette = [
-    [230, 130, 165], [245, 160, 190], [210, 105, 148], [255, 175, 200],
-    [195, 90, 135],  [240, 145, 175], [220, 115, 155], [255, 200, 215],
-    [185, 80, 125],  [250, 170, 195], [205, 100, 145], [225, 125, 160],
-]
-color_map = {s: palette[i % len(palette)] + [210] for i, s in enumerate(species_list)}
-filtered["color"] = filtered["Common name"].map(color_map)
-filtered["elevation"] = filtered["bloom_score"] * 15
-
-tooltip = {
-    "html": """
-        <div style='font-family:"Nunito",sans-serif; padding:10px 12px;
-                    background:rgba(253,245,248,0.97);
-                    border:1px solid rgba(212,96,122,0.35);
-                    border-radius:12px; color:#5e2a44;
-                    box-shadow:0 4px 16px rgba(185,80,120,0.2);'>
-            <b style='font-size:14px; font-family:"Cormorant Garamond",serif;'>🌸 {Common name}</b><br/>
-            <span style='color:#a07080; font-size:12px; font-style:italic'>{Species name} {Cultivar name}</span><br/>
-            <div style='border-top:1px solid rgba(212,96,122,0.2); margin:6px 0 5px 0;'></div>
-            📍 {Address}<br/>
-            📏 Height: {height_(m)} m &nbsp;·&nbsp; 🌲 ⌀ {diameter_(cm)} cm<br/>
-            🌡️ {bloom_label}<br/>
-            📅 Planted: {Date planted}
-        </div>
-    """,
-    "style": {"backgroundColor": "transparent"},
-}
-
-if map_layer == "Scatter":
-    layer = pdk.Layer(
-        "ScatterplotLayer",
-        data=filtered,
-        get_position="[lon, lat]",
-        get_fill_color="color",
-        get_radius=point_size * 2,
-        radius_min_pixels=3,
-        radius_max_pixels=point_size,
-        pickable=True,
-        auto_highlight=True,
-    )
-elif map_layer == "Heatmap":
-    layer = pdk.Layer(
-        "HeatmapLayer",
-        data=filtered,
-        get_position="[lon, lat]",
-        get_weight="weight",
-        radiusPixels=40,
-        colorRange=[
-            [255, 245, 250],   # near-white blush
-            [252, 220, 235],   # very light sakura
-            [245, 175, 205],   # soft petal pink
-            [225, 130, 170],   # medium rose
-            [195,  85, 130],   # deeper rose
-            [150,  40,  85],   # dark cherry
-        ],
-        threshold=0.05,
-        aggregation="SUM",
-    )
-else:  # 3D Hexagon
-    layer = pdk.Layer(
-        "HexagonLayer",
-        data=filtered,
-        get_position="[lon, lat]",
-        radius=120,
-        elevation_scale=4,
-        elevation_range=[0, 500],
-        extruded=True,
-        pickable=True,
-        auto_highlight=True,
-        color_range=[
-            [255, 240, 248],
-            [250, 205, 228],
-            [240, 160, 200],
-            [220, 110, 160],
-            [185,  65, 115],
-            [135,  25,  75],
-        ],
-    )
+# Heatmap layer only
+layer = pdk.Layer(
+    "HeatmapLayer",
+    data=filtered,
+    get_position="[lon, lat]",
+    get_weight="weight",
+    radiusPixels=40,
+    colorRange=[
+        [255, 245, 250],   # near-white blush
+        [252, 220, 235],   # very light sakura
+        [245, 175, 205],   # soft petal pink
+        [225, 130, 170],   # medium rose
+        [195,  85, 130],   # deeper rose
+        [150,  40,  85],   # dark cherry
+    ],
+    threshold=0.05,
+    aggregation="SUM",
+)
 
 view_state = pdk.ViewState(
     latitude=49.2500,
     longitude=-123.1200,
     zoom=11.5,
-    pitch=45 if map_layer == "3D Hexagon" else 0,
+    pitch=0,
     bearing=0,
 )
 
@@ -536,29 +439,11 @@ st.pydeck_chart(
     pdk.Deck(
         layers=[layer],
         initial_view_state=view_state,
-        tooltip=tooltip if map_layer == "Scatter" else None,
         map_style=map_style,
     ),
     use_container_width=True,
     height=500,
 )
-
-# ─── Variety Legend ───────────────────────────────────────────────────────────
-if map_layer == "Scatter" and species_list:
-    with st.expander("🎨 Variety Colour Legend", expanded=False):
-        legend_html = ""
-        for s in species_list:
-            rgb = color_map[s]
-            hex_c = "#{:02x}{:02x}{:02x}".format(rgb[0], rgb[1], rgb[2])
-            count = len(filtered[filtered["Common name"] == s])
-            legend_html += (
-                f'<span style="display:inline-flex;align-items:center;margin:4px 18px 4px 0;">'
-                f'<span style="width:13px;height:13px;background:{hex_c};border-radius:50%;'
-                f'display:inline-block;margin-right:7px;box-shadow:0 1px 4px rgba(0,0,0,0.12);"></span>'
-                f'<span style="font-size:13px;color:#5e2a44;font-family:\'Nunito\',sans-serif;">'
-                f'{s.title()} <span style="color:#a07080;">({count:,})</span></span></span>'
-            )
-        st.markdown(legend_html, unsafe_allow_html=True)
 
 st.divider()
 
@@ -598,57 +483,11 @@ with col1:
     st.plotly_chart(fig_var, use_container_width=True)
 
 with col2:
-    bloom_counts = filtered["bloom_label"].value_counts().reset_index()
-    bloom_counts.columns = ["Status", "Count"]
-    fig_bloom = px.pie(
-        bloom_counts,
-        names="Status", values="Count",
-        title="🌡️ Bloom Status Distribution",
-        color_discrete_sequence=["#e8849f", "#f0a8bf", "#f5c8d8", "#f9dde7", "#fceef4"],
-        hole=0.48,
-    )
-    fig_bloom.update_traces(
-        textinfo="percent+label", textfont_size=11,
-        marker=dict(line=dict(color="rgba(255,248,251,0.9)", width=2))
-    )
-    fig_bloom.update_layout(
-        **_layout,
-        legend=dict(orientation="v", x=1, y=0.5, font=dict(size=11)),
-    )
-    st.plotly_chart(fig_bloom, use_container_width=True)
-
-col3, col4 = st.columns(2)
-
-with col3:
-    year_df = filtered.dropna(subset=["year_planted"])
-    if not year_df.empty:
-        planting_timeline = year_df.groupby("year_planted").size().reset_index(name="Trees Planted")
-        fig_time = px.area(
-            planting_timeline,
-            x="year_planted", y="Trees Planted",
-            title="📅 Trees Planted Over Time",
-            color_discrete_sequence=["#d4607a"],
-            markers=True,
-        )
-        fig_time.update_traces(
-            fillcolor="rgba(212,96,122,0.12)",
-            line_color="#d4607a",
-            marker=dict(color="#d4607a", size=5),
-        )
-        fig_time.update_layout(
-            **_layout,
-            xaxis_title="Year", yaxis_title="# Trees",
-        )
-        st.plotly_chart(fig_time, use_container_width=True)
-    else:
-        st.info("No planting date data available for current filter.")
-
-with col4:
     fig_scatter = px.scatter(
         filtered.dropna(subset=["height_(m)", "diameter_(cm)"]),
         x="diameter_(cm)", y="height_(m)",
         color="Common name",
-        hover_data=["Address", "bloom_label"],
+        hover_data=["Address"],
         title="📐 Height vs. Trunk Diameter",
         opacity=0.6,
         color_discrete_sequence=[
@@ -716,41 +555,11 @@ with col6:
 
 st.divider()
 
-# ─── Peak Bloom Table ─────────────────────────────────────────────────────────
-st.markdown('<div class="section-header">🌸 Top Peak Bloom Locations</div>', unsafe_allow_html=True)
-
-peak = (
-    filtered[filtered["bloom_score"] >= 4]
-    [["Address", "Common name", "height_(m)", "diameter_(cm)", "bloom_label", "lat", "lon"]]
-    .sort_values("diameter_(cm)", ascending=False)
-    .head(20)
-    .reset_index(drop=True)
-)
-peak.index += 1
-
-if not peak.empty:
-    st.dataframe(
-        peak.rename(columns={
-            "Address": "📍 Address",
-            "Common name": "🌸 Variety",
-            "height_(m)": "📏 Height (m)",
-            "diameter_(cm)": "🌲 Diameter (cm)",
-            "bloom_label": "🌡️ Status",
-            "lat": "Lat", "lon": "Lon",
-        }),
-        use_container_width=True,
-        height=380,
-    )
-else:
-    st.info("No peak bloom trees in current filter selection.")
-
-st.divider()
-
 # ─── Raw Data ─────────────────────────────────────────────────────────────────
 with st.expander("📋 View Full Filtered Dataset", expanded=False):
     display_cols = [
         "Asset ID", "Address", "Common name", "Species name", "Cultivar name",
-        "height_(m)", "diameter_(cm)", "age_years", "bloom_label", "Date planted",
+        "height_(m)", "diameter_(cm)", "age_years", "Date planted",
     ]
     st.dataframe(filtered[display_cols].reset_index(drop=True), use_container_width=True, height=400)
     st.caption(f"Showing {len(filtered):,} trees after filters applied.")
