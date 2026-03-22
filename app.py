@@ -414,6 +414,16 @@ st.markdown("")
 # ─── Map ─────────────────────────────────────────────────────────────────────
 st.markdown(f'<div class="section-header">🗺️ Interactive Map ({viz_type[2:]})</div>', unsafe_allow_html=True)
 
+# Shared pink color range for Heatmap & Hexagon layers
+sakura_colors = [
+    [255, 245, 250],   # near-white blush
+    [252, 220, 235],   # very light sakura
+    [245, 175, 205],   # soft petal pink
+    [225, 130, 170],   # medium rose
+    [195,  85, 130],   # deeper rose
+    [150,  40,  85],   # dark cherry
+]
+
 # Map layer based on selection
 if viz_type == "🌸 Dots":
     layer = pdk.Layer(
@@ -431,14 +441,7 @@ elif viz_type == "🔥 Heatmap":
         get_position="[lon, lat]",
         get_weight="weight",
         radiusPixels=40,
-        colorRange=[
-            [255, 245, 250],   # near-white blush
-            [252, 220, 235],
-            [245, 175, 205],
-            [225, 130, 170],
-            [195,  85, 130],
-            [150,  40,  85],
-        ],
+        colorRange=sakura_colors,
         threshold=0.05,
         aggregation="SUM",
     )
@@ -448,9 +451,9 @@ else:  # 📊 3D Columns
         data=filtered,
         get_position="[lon, lat]",
         radius=140,
-        elevation_scale=4,
-        elevation_range=[0, 1000],
-        get_fill_color="[212, 96, 122, 180]",
+        elevation_scale=8,
+        elevation_range=[0, 1500],
+        colorRange=sakura_colors,
         extruded=True,
         pickable=True,
     )
