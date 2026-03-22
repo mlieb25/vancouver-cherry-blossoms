@@ -563,7 +563,7 @@ with col5:
 
 with col6:
     height_bins = pd.cut(filtered["height_(m)"], bins=10)
-    height_dist = filtered.groupby(height_bins, observed=True)["height_(m)"].count().reset_index()
+    height_dist = filtered.groupby(height_bins, observed=True).size().reset_index(name="Count")
     height_dist.columns = ["Height Range", "Count"]
     height_dist["Height Range"] = height_dist["Height Range"].astype(str)
     fig_hist = px.bar(
