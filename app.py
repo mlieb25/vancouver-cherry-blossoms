@@ -362,6 +362,12 @@ with st.sidebar:
         index=0,
     )
 
+    viz_type = st.radio(
+        "Visualization Type",
+        options=["🌸 Dots", "🔥 Heatmap", "📊 3D Columns"],
+        index=1,
+    )
+
     st.markdown("---")
     st.markdown("### 📥 Export")
 
@@ -393,7 +399,7 @@ with st.sidebar:
         data=csv_export,
         file_name="vancouver_cherry_blossoms_filtered.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
 
 # ─── KPI Row ─────────────────────────────────────────────────────────────────
@@ -406,32 +412,54 @@ k4.metric("🌲 Avg Diameter", f"{filtered['diameter_(cm)'].mean():.1f} cm")
 st.markdown("")
 
 # ─── Map ─────────────────────────────────────────────────────────────────────
-st.markdown('<div class="section-header">🗺️ Interactive Map (Heatmap)</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="section-header">🗺️ Interactive Map ({viz_type[2:]})</div>', unsafe_allow_html=True)
 
-# Heatmap layer only
-layer = pdk.Layer(
-    "HeatmapLayer",
-    data=filtered,
-    get_position="[lon, lat]",
-    get_weight="weight",
-    radiusPixels=40,
-    colorRange=[
-        [255, 245, 250],   # near-white blush
-        [252, 220, 235],   # very light sakura
-        [245, 175, 205],   # soft petal pink
-        [225, 130, 170],   # medium rose
-        [195,  85, 130],   # deeper rose
-        [150,  40,  85],   # dark cherry
-    ],
-    threshold=0.05,
-    aggregation="SUM",
-)
+# Map layer based on selection
+if viz_type == "🌸 Dots":
+    layer = pdk.Layer(
+        "ScatterplotLayer",
+        data=filtered,
+        get_position="[lon, lat]",
+        get_color="[212, 96, 122, 160]",  # cherry pink with alpha
+        get_radius=8,
+        pickable=True,
+    )
+elif viz_type == "🔥 Heatmap":
+    layer = pdk.Layer(
+        "HeatmapLayer",
+        data=filtered,
+        get_position="[lon, lat]",
+        get_weight="weight",
+        radiusPixels=40,
+        colorRange=[
+            [255, 245, 250],   # near-white blush
+            [252, 220, 235],
+            [245, 175, 205],
+            [225, 130, 170],
+            [195,  85, 130],
+            [150,  40,  85],
+        ],
+        threshold=0.05,
+        aggregation="SUM",
+    )
+else:  # 📊 3D Columns
+    layer = pdk.Layer(
+        "HexagonLayer",
+        data=filtered,
+        get_position="[lon, lat]",
+        radius=140,
+        elevation_scale=4,
+        elevation_range=[0, 1000],
+        get_fill_color="[212, 96, 122, 180]",
+        extruded=True,
+        pickable=True,
+    )
 
 view_state = pdk.ViewState(
     latitude=49.2500,
     longitude=-123.1200,
-    zoom=11.5,
-    pitch=0,
+    zoom=11.5 if viz_type != "📊 3D Columns" else 10.5,
+    pitch=45 if viz_type == "📊 3D Columns" else 0,
     bearing=0,
 )
 
@@ -440,8 +468,9 @@ st.pydeck_chart(
         layers=[layer],
         initial_view_state=view_state,
         map_style=map_style,
+        tooltip={"text": "{full_name}\n{Address}"} if viz_type == "🌸 Dots" else True
     ),
-    use_container_width=True,
+    width="stretch",
     height=500,
 )
 
@@ -480,7 +509,7 @@ with col1:
         showlegend=False, coloraxis_showscale=False,
         yaxis={"categoryorder": "total ascending"},
     )
-    st.plotly_chart(fig_var, use_container_width=True)
+    st.plotly_chart(fig_var, width="stretch")
 
 with col2:
     fig_scatter = px.scatter(
@@ -500,7 +529,7 @@ with col2:
         **_layout,
         legend=dict(orientation="v", x=1, y=1, font=dict(size=10)),
     )
-    st.plotly_chart(fig_scatter, use_container_width=True)
+    st.plotly_chart(fig_scatter, width="stretch")
 
 col5, col6 = st.columns(2)
 
@@ -528,9 +557,9 @@ with col5:
         **_layout,
         showlegend=False, coloraxis_showscale=False,
         yaxis={"categoryorder": "total ascending"},
-        margin=dict(l=10, r=30, t=44, b=10),
     )
-    st.plotly_chart(fig_streets, use_container_width=True)
+    fig_streets.update_layout(margin=dict(l=10, r=30, t=44, b=10))
+    st.plotly_chart(fig_streets, width="stretch")
 
 with col6:
     height_bins = pd.cut(filtered["height_(m)"], bins=10)
@@ -549,9 +578,9 @@ with col6:
         **_layout,
         showlegend=False, coloraxis_showscale=False,
         xaxis_tickangle=-30,
-        margin=dict(l=10, r=10, t=44, b=60),
     )
-    st.plotly_chart(fig_hist, use_container_width=True)
+    fig_hist.update_layout(margin=dict(l=10, r=10, t=44, b=60))
+    st.plotly_chart(fig_hist, width="stretch")
 
 st.divider()
 
@@ -561,7 +590,7 @@ with st.expander("📋 View Full Filtered Dataset", expanded=False):
         "Asset ID", "Address", "Common name", "Species name", "Cultivar name",
         "height_(m)", "diameter_(cm)", "age_years", "Date planted",
     ]
-    st.dataframe(filtered[display_cols].reset_index(drop=True), use_container_width=True, height=400)
+    st.dataframe(filtered[display_cols].reset_index(drop=True), width="stretch", height=400)
     st.caption(f"Showing {len(filtered):,} trees after filters applied.")
 
 # ─── Footer ──────────────────────────────────────────────────────────────────
